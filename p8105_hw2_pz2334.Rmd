@@ -1,0 +1,141 @@
+---
+title: "p8105_hw2_pz2334"
+author: "Puyuan Zhang"
+date: "`r Sys.Date()`"
+output: pdf_document
+github_document:
+  html_preview: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(readxl)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+```
+## Problem 2
+```{r}
+mr_wheel_df =
+  read_excel("gbb_datasets/202309 Trash Wheel Collection Data.xlsx", sheet = "Mr. Trash Wheel", range = "A2:N586") |>
+  janitor::clean_names() |>
+  drop_na(dumpster) |>
+  mutate(
+    sports_balls = as.integer(round(sports_balls)),
+         trash_wheel = "Mr. Trash Wheel",
+         year = as.numeric(year))
+```
+```{r}
+professor_wheel_df =
+  read_excel("gbb_datasets/202309 Trash Wheel Collection Data.xlsx", sheet = "Professor Trash Wheel", range = "A2:M108") |>
+  janitor::clean_names() |>
+  drop_na(dumpster) |>
+  mutate(trash_wheel = "Professor Trash Wheel",
+         sports_balls = NA)
+p_names <- names(professor_wheel_df)
+```
+```{r}
+gwynnda_wheel_df =
+  read_excel("gbb_datasets/202309 Trash Wheel Collection Data.xlsx", sheet = "Gwynnda Trash Wheel", range = "A2:L157") |>
+  janitor::clean_names() |>
+  drop_na(dumpster) |>
+  mutate(trash_wheel = "Gwynnda Trash Wheel",
+         sports_balls = NA,
+         glass_bottles = NA)
+```
+```{r}
+combined_trash_wheel <- bind_rows(mr_wheel_df, professor_wheel_df)
+combined_trash_wheel <- bind_rows(combined_trash_wheel, gwynnda_wheel_df)
+```
+```{r}
+n_obs <- nrow(combined_trash_wheel)
+n_vars <- ncol(combined_trash_wheel)
+tot_weight_p <- combined_trash_wheel |>
+  filter(trash_wheel == "Professor Trash Wheel") |>
+  summarise(total_weight = sum(weight_tons, na.rm = TRUE))
+cig_june2022_g <- combined_trash_wheel |>
+  filter(trash_wheel == "Gwynnda Trash Wheel", year == 2022, month == "June") %>%
+  summarise(total_butts = sum(cigarette_butts, na.rm = TRUE))
+```
+The dataset, after cleaning and combining data from Mr. Trash Wheel, Professor Trash Wheel, and Gwynnda, includes `r n_obs` observations and `r n_vars` variables. The variables in this dataset are `r p_names`, which represent important metrics such as the weight of trash collected (in tons), the number of cigarette butts, and the number of sports balls. Among all these variables, we create trash_wheel to identify the origin of this row of data. 
+
+During combining and cleaning process, we noticed that the Professor Trash Wheel dataset did not contain any values for the sports balls variable. Additionally, the variable "year" in this dataset was originally stored as a character type, which differed from the other datasets. So, we changed the data type for "year" to numeric. Also, we add the sports balls variable, setting its values to NA to represent its missing. 
+
+Similarly, in the Gwynnda dataset, there was no value for both sports balls and glass bottles. So, we added these variables with NA values to the Gwynnda dataset to maintain uniformity across all datasets. 
+
+For the available data in the combined dataframe, we can easily extract specific measurements of interest. For instance, the total weight of trash collected by Professor Trash Wheel amounts to `r tot_weight_p`. Similarly, the total number of cigarette butts collected by Gwynnda in June 2022 is `r cig_june2022_g`.
+
+## Problem 3
+```{r, message=FALSE}
+bakers =
+  read_csv("gbb_datasets/bakers.csv") |>
+  janitor::clean_names() |>
+  mutate(baker = word(baker_name, 1),
+  baker = if_else(baker == "Jo", "Joanne", baker))
+bakes = 
+  read_csv("gbb_datasets/bakes.csv") |>
+  janitor::clean_names() |>
+  mutate(baker = if_else(baker == '"Jo"', "Joanne", baker))
+results = 
+  read_csv("gbb_datasets/results.csv", skip = 2) |>
+  janitor::clean_names() |>
+  drop_na(result)
+```
+```{r}
+combined_df = left_join(results, bakes, by = c("baker", "episode", "series"))
+combined_df = left_join(combined_df, bakers, by = c("baker", "series"))
+```
+```{r}
+unmatched_bakers <- anti_join(bakers, combined_df, by = c("baker", "series"))
+unmatched_bakes <- anti_join(bakes, combined_df, by = c("baker", "series", "episode"))
+unmatched_results <- anti_join(results, combined_df, by = c("baker", "series", "episode"))
+```
+```{r}
+combined_df = combined_df |>
+  select(-baker)
+c_names <- names(combined_df)
+```
+We quickly review the datasets during the cleaning process at beginning, we can find out that the 'result' variable in results.csv is empty for rows where the baker are OUT in the previous episode. So, we drop rows where 'result' is NA.
+
+After initial review, all three datasets included variables related to series and baker names. However, bakers.csv lists full names. We create a helper variable called 'baker' to facilitate merging the datasets. After the merging process, anti_join used in checking process indicates the inconsistency with a baker named "Jo," who was absent in the other two datasets. Go back to the original datasets, we found that "Jo" is referred to "Joanne" in results.csv. So, we change this baker's name from "Jo" to "Joanne" in the other datasets to ensure a successful merge.
+
+After merging, we noticed redundancy with two columns referring to the bakers' names. So I removed the helper variable (the 'baker' column which contained first names) to simplify the dataset. The final dataset contains variable `r c_names`.
+
+```{r}
+winners <- combined_df |>
+  filter(series %in% 5:10, result %in% c("WINNER", "STAR BAKER")) |>
+  select(series, episode, result, baker_name)
+```
+After creating and viewing this datasets, we can easily check the winner of each season and the star baker in each episode. It is surprising that the winner in season 10 has never been a star baker in any of the episode.
+
+```{r, message=FALSE}
+reviews =
+  read_csv("gbb_datasets/viewers.csv") |>
+  janitor::clean_names()
+head(reviews, 10)
+mean_1 <- mean(reviews$series_1, na.rm = T)
+mean_5 <- mean(reviews$series_5, na.rm = T)
+```
+The average viewership in Season 1 is `r mean_1`, and average in Season 5 is `r mean_5`.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
